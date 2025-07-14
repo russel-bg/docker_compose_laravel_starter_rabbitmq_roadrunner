@@ -1,0 +1,134 @@
+version: '3'
+
+server:
+  command: "php /workspace/psr-worker.php"
+  relay: "pipes"
+
+http:
+  address: 0.0.0.0:8080
+
+rpc:
+  listen: tcp://0.0.0.0:6001
+
+# do not use development mode in production
+logs:
+  level: debug
+  mode: development
+
+# jobs:
+#   # List of RoadRunner queues that can be processed by
+#   # the consumer specified in the "server" section. 
+#   consume: [ "test" ]
+#   pipelines:
+#     test: # RoadRunner queue identifier
+#       driver: memory    # - Queue driver name
+#       config:
+#         priority: 10
+#         prefetch: 10
+
+
+amqp:
+  addr: amqp://guest:guest@rabbitmq:5672
+
+jobs:
+  consume: ["test"]
+  pipelines:
+    # User defined name of the queue.
+    test:
+      # Driver name
+      #
+      # This option is required.
+      driver: amqp
+
+      # Driver's configuration
+      #
+      # Should not be empty
+      config:
+
+        # QoS - prefetch.
+        #
+        # Default: 10
+        prefetch: 10
+
+        # Pipeline priority
+        #
+        # If the job has priority set to 0, it will inherit the pipeline's priority. Default: 10.
+        priority: 1
+
+        # Redial timeout (in seconds). How long to try to reconnect to the AMQP server.
+        #
+        # Default: 60
+        redial_timeout: 60
+
+        # Durable queue
+        #
+        # Default: false
+        durable: false
+
+        # Durable exchange (rabbitmq option: https://www.rabbitmq.com/tutorials/amqp-concepts.html#exchanges)
+        #
+        # Default: false
+        exchange_durable: false
+
+        # Auto-delete (exchange is deleted when last queue is unbound from it): https://www.rabbitmq.com/tutorials/amqp-concepts.html#exchanges
+        #
+        # Default: false
+        exchange_auto_delete: false
+
+        # Auto-delete (queue that has had at least one consumer is deleted when last consumer unsubscribes) (rabbitmq option: https://www.rabbitmq.com/queues.html#properties)
+        #
+        # Default: false
+        queue_auto_delete: false
+
+        # Delete queue when stopping the pipeline
+        #
+        # Default: false
+        delete_queue_on_stop: false
+
+        # Queue name
+        #
+        # Default: default
+        queue: test-1-queue
+
+        # Exchange name
+        #
+        # Default: amqp.default
+        exchange: default
+
+        # Exchange type
+        #
+        # Default: direct.
+        exchange_type: direct
+
+        # Routing key for the queue
+        #
+        # Default: empty.
+        routing_key: test
+
+        # Declare a queue exclusive at the exchange
+        #
+        # Default: false
+        exclusive: false
+
+        # When multiple is true, this delivery and all prior unacknowledged deliveries
+        # on the same channel will be acknowledged.  This is useful for batch processing
+        # of deliveries
+        #
+        # Default: false
+        multiple_ack: false
+
+        # The consumer_id is identified by a string that is unique and scoped for all consumers on this channel.
+        #
+        # Default: "roadrunner" + uuid.
+        consumer_id: "roadrunner-uuid"
+
+        # Use rabbitmq mechanism to requeue the job on fail
+        #
+        # Default: false
+        requeue_on_fail: false
+
+        # Queue headers (new in 2.12.2)
+        #
+        # Default: null
+        queue_headers:
+          x-queue-mode: lazy

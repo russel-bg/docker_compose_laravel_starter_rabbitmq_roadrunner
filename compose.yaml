@@ -1,0 +1,132 @@
+volumes:
+  db-store:
+  meili_data:
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./infra/docker/php/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+      target: ${APP_BUILD_TARGET:-development}
+    volumes:
+      - type: bind
+        source: ./src
+        target: /workspace
+
+  web:
+    build:
+      context: .
+      dockerfile: ./infra/docker/nginx/Dockerfile
+    ports:
+      - target: 80
+        published: ${WEB_PUBLISHED_PORT:-80}
+        protocol: tcp
+        mode: host
+    volumes:
+      - type: bind
+        source: ./src
+        target: /workspace
+
+  workspace:
+    build:
+      context: .
+      dockerfile: ./infra/docker/workspace/Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+      target: ${APP_BUILD_TARGET:-development}
+    volumes:
+      - type: bind
+        source: ./src
+        target: /workspace
+    tty: true  # Enables an interactive terminal
+    stdin_open: true  # Keeps standard input open for 'docker exec'
+    
+  db:
+    build:
+      context: .
+      dockerfile: ./infra/docker/mysql/Dockerfile
+    ports:
+      - target: 3306
+        published: ${DB_PUBLISHED_PORT:-3306}
+        protocol: tcp
+        mode: host
+    volumes:
+      - type: volume
+        source: db-store
+        target: /var/lib/mysql
+        volume:
+          nocopy: true
+    environment:
+      - MYSQL_DATABASE=${DB_DATABASE:-laravel}
+      - MYSQL_USER=${DB_USERNAME:-phper}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-secret}
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-secret}
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - target: 8025
+        published: ${MAILPIT_PUBLISHED_PORT:-8025}
+        protocol: tcp
+        mode: host
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    ports:
+      - target: 7700
+        published: 7700
+        protocol: tcp
+        mode: host
+    environment:
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - type: volume
+        source: meili_data
+        target: /meili_data
+
+  roadrunner:
+    build:
+      context: .
+      dockerfile: ./infra/docker/roadrunner/Dockerfile
+    volumes:
+      - type: bind
+        source: .rr.yaml
+        target: /workspace/.rr.yaml
+    environment:
+      - RR_LOG_LEVEL=debug
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    tty:
+      true
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    user: "999:999"
+    ports:
+      - target: 5672
+        published: 5672
+        protocol: tcp
+        mode: host
+      - target: 15672
+        published: 15672
+        protocol: tcp
+        mode: host
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_CONFIG_FILES=/etc/rabbitmq/conf.d
+    volumes:
+      - type: bind
+        source: ./infra/docker/rabbitmq/conf.d
+        target: /etc/rabbitmq/conf.d
+    healthcheck:
+      test: ["CMD", "sh", "-c", "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
